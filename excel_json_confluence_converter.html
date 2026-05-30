@@ -1,0 +1,279 @@
+<div id="xlsx-json-converter">
+  <style>
+    #xlsx-json-converter { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 1100px; margin: 0 auto; padding: 20px; color: #172b4d; line-height: 1.5; }
+    #xlsx-json-converter h3 { margin-bottom: 16px; font-size: 22px; }
+    #xlsx-json-converter .control-row { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+    #xlsx-json-converter input[type="file"] { padding: 8px; border: 1px solid #dfe1e6; border-radius: 4px; background: #f4f5f7; }
+    #xlsx-json-converter button { padding: 8px 14px; background: #0052cc; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; transition: background 0.2s; }
+    #xlsx-json-converter button:hover { background: #0065ff; }
+    #xlsx-json-converter button:disabled { background: #b3d4ff; cursor: not-allowed; }
+    #xlsx-json-converter button.secondary { background: #fff; color: #0052cc; border: 1px solid #0052cc; }
+    #xlsx-json-converter button.secondary:hover { background: #e6f0ff; }
+    #xlsx-json-converter .hidden { display: none; }
+    #xlsx-json-converter table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+    #xlsx-json-converter th, #xlsx-json-converter td { border: 1px solid #dfe1e6; padding: 8px; text-align: left; vertical-align: middle; }
+    #xlsx-json-converter th { background: #f4f5f7; font-weight: 600; }
+    #xlsx-json-converter input[type="text"] { width: 100%; padding: 6px; border: 1px solid #dfe1e6; border-radius: 3px; font-family: monospace; font-size: 13px; box-sizing: border-box; }
+    #xlsx-json-converter input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+    #xlsx-json-converter pre { background: #f4f5f7; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 13px; max-height: 400px; border: 1px solid #dfe1e6; }
+    #xlsx-json-converter .instructions { margin-top: 40px; padding: 20px; background: #f9f9fa; border-radius: 8px; border-left: 4px solid #0052cc; }
+    #xlsx-json-converter .instructions h4 { margin-top: 0; }
+    #xlsx-json-converter .instructions code { background: #e6f0ff; padding: 2px 4px; border-radius: 3px; font-size: 0.95em; }
+    #xlsx-json-converter .status { font-size: 13px; color: #6b778c; margin-top: 4px; }
+  </style>
+
+  <h3>Excel → JSON Конвертер</h3>
+  
+  <div class="control-row">
+    <input type="file" id="fileInput" accept=".xlsx,.xls" />
+    <div class="status" id="statusMsg"></div>
+  </div>
+
+  <div id="configPanel" class="hidden">
+    <table id="columnsTable">
+      <thead>
+        <tr>
+          <th style="width: 25%;">Исходный столбец</th>
+          <th style="width: 10%; text-align:center;">Включить</th>
+          <th style="width: 30%;">Транслитерированный ключ</th>
+          <th style="width: 35%;">JSON-путь (точечная нотация)</th>
+        </tr>
+      </thead>
+      <tbody id="columnsBody"></tbody>
+    </table>
+
+    <div class="control-row" style="justify-content: space-between; margin-top: 12px;">
+      <div>
+        <button id="generateBtn">🔄 Сгенерировать JSON</button>
+        <button id="downloadBtn" class="secondary" disabled> Скачать JSON</button>
+      </div>
+      <div>
+        <button id="saveSettingsBtn" class="secondary">⬇️ Сохранить настройки</button>
+        <button id="loadSettingsBtn" class="secondary">⬆️ Загрузить настройки</button>
+        <input type="file" id="settingsInput" class="hidden" accept=".json" />
+      </div>
+    </div>
+
+    <h4 style="margin-top:20px;">Предпросмотр:</h4>
+    <pre id="jsonPreview">// JSON появится здесь после генерации...</pre>
+  </div>
+
+  <div class="instructions">
+    <h4>📖 Как пользоваться точечной нотацией</h4>
+    <p>Точечная нотация позволяет превращать плоские столбцы таблицы в <strong>вложенную структуру JSON</strong> без написания кода. Достаточно указать путь через точку <code>.</code></p>
+    
+    <table style="margin:12px 0; width:auto;">
+      <tr><th>Что ввести в поле "JSON-путь"</th><th>Как будет выглядеть в JSON</th></tr>
+      <tr><td><code>name</code></td><td><code>{ "name": "Иван" }</code></td></tr>
+      <tr><td><code>user.firstName</code></td><td><code>{ "user": { "firstName": "Иван" } }</code></td></tr>
+      <tr><td><code>address.city</code></td><td><code>{ "address": { "city": "Москва" } }</code></td></tr>
+      <tr><td><code>meta.createdBy.name</code></td><td><code>{ "meta": { "createdBy": { "name": "Admin" } } }</code></td></tr>
+    </table>
+
+    <p><strong>Правила:</strong></p>
+    <ul>
+      <li>Точки <code>.</code> автоматически создают уровни вложенности.</li>
+      <li>Пробелы и спецсимволы в путях лучше заменять на <code>_</code> (например: <code>user_first_name</code>).</li>
+      <li>Если несколько столбцов ведут в один объект (например: <code>address.city</code> и <code>address.zip</code>), они объединятся в одну структуру <code>address</code>.</li>
+      <li>Пустые ячейки в Excel станут <code>null</code> или <code>""</code> в JSON.</li>
+    </ul>
+    <p>💡 <em>Совет:</em> сначала загрузите файл, отредактируйте транслитерированные ключи под себя, затем измените пути через точку там, где нужна вложенность. Нажмите "Сгенерировать" и проверьте предпросмотр.</p>
+  </div>
+
+  <!-- Библиотека для чтения Excel -->
+  // =========== Прикрепите файл xlsx.full.min.js в качестве вложения в статью confluence =============
+  // =========== ЗАМЕНИТЕ НА src="attachment:xlsx.full.min.js" чтобы работало в confluence ============
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+  
+  <script>
+    (function() {
+      const fileInput = document.getElementById('fileInput');
+      const configPanel = document.getElementById('configPanel');
+      const columnsBody = document.getElementById('columnsBody');
+      const generateBtn = document.getElementById('generateBtn');
+      const downloadBtn = document.getElementById('downloadBtn');
+      const jsonPreview = document.getElementById('jsonPreview');
+      const statusMsg = document.getElementById('statusMsg');
+      const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+      const loadSettingsBtn = document.getElementById('loadSettingsBtn');
+      const settingsInput = document.getElementById('settingsInput');
+
+      let workbook = null;
+      let sheetRows = [];
+      let headers = [];
+      let currentConfig = [];
+
+      // Транслитерация кириллицы
+      function transliterate(word) {
+        const a = {"Ё":"YO","Й":"I","Ц":"TS","У":"U","К":"K","Е":"E","Н":"N","Г":"G","Ш":"SH","Щ":"SCH","З":"Z","Х":"H","Ъ":"","ё":"yo","й":"i","ц":"ts","у":"u","к":"k","е":"e","н":"n","г":"g","ш":"sh","щ":"sch","з":"z","х":"h","ъ":"","Ф":"F","Ы":"Y","В":"V","А":"A","П":"P","Р":"R","О":"O","Л":"L","Д":"D","Ж":"ZH","Э":"E","ф":"f","ы":"y","в":"v","а":"a","п":"p","р":"r","о":"o","л":"l","д":"d","ж":"zh","э":"e","Я":"Ya","Ч":"CH","С":"S","М":"M","И":"I","Т":"T","Ь":"","Б":"B","Ю":"YU","я":"ya","ч":"ch","с":"s","м":"m","и":"i","т":"t","ь":"","б":"b","ю":"yu"};
+        return word.split('').map(char => a[char] || char).join('');
+      }
+
+      function sanitizeKey(key) {
+        return key.replace(/[^a-zA-Z0-9_.]/g, '_').replace(/^_+|_+$/g, '');
+      }
+
+      fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        statusMsg.textContent = 'Чтение файла...';
+        
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+          try {
+            if (typeof XLSX === 'undefined') {
+              throw new Error('Библиотека XLSX не загружена. Проверьте подключение или прикрепите файл xlsx.full.min.js к странице.');
+            }
+            const data = new Uint8Array(evt.target.result);
+            workbook = XLSX.read(data, { type: 'array' });
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            sheetRows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: null });
+            
+            if (sheetRows.length === 0) throw new Error('Файл пуст');
+            headers = sheetRows[0].map((h, i) => h !== null && h !== undefined ? String(h).trim() : `Column_${i}`);
+            
+            renderConfigTable();
+            configPanel.classList.remove('hidden');
+            statusMsg.textContent = `Загружено: ${headers.length} столбцов, ${sheetRows.length - 1} строк данных.`;
+          } catch (err) {
+            statusMsg.textContent = 'Ошибка: ' + err.message;
+            configPanel.classList.add('hidden');
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      });
+
+      function renderConfigTable() {
+        columnsBody.innerHTML = '';
+        currentConfig = headers.map(h => {
+          const tr = document.createElement('tr');
+          const clean = sanitizeKey(transliterate(h));
+          
+          tr.innerHTML = `
+            <td>${h}</td>
+            <td style="text-align:center;"><input type="checkbox" checked data-col="${h}"></td>
+            <td><input type="text" value="${clean}" class="translit-input" data-col="${h}"></td>
+            <td><input type="text" value="${clean}" class="path-input" data-col="${h}" placeholder="например: user.profile.name"></td>
+          `;
+          columnsBody.appendChild(tr);
+          return { original: h, selected: true, translit: clean, path: clean };
+        });
+      }
+
+      function readUIConfig() {
+        currentConfig = [];
+        const rows = columnsBody.querySelectorAll('tr');
+        rows.forEach(row => {
+          const col = row.querySelector('[data-col]').dataset.col;
+          const selected = row.querySelector('input[type="checkbox"]').checked;
+          const translit = sanitizeKey(row.querySelector('.translit-input').value) || col;
+          const path = row.querySelector('.path-input').value || translit;
+          currentConfig.push({ original: col, selected, translit, path });
+        });
+      }
+
+      function applyDotNotation(obj, path, value) {
+        const parts = path.split('.').map(p => p.trim()).filter(p => p);
+        let target = obj;
+        for (let i = 0; i < parts.length; i++) {
+          const key = parts[i];
+          if (i === parts.length - 1) {
+            target[key] = value;
+          } else {
+            target[key] = target[key] || {};
+            target = target[key];
+          }
+        }
+      }
+
+      generateBtn.addEventListener('click', function() {
+        readUIConfig();
+        const activeCols = currentConfig.filter(c => c.selected);
+        if (activeCols.length === 0) {
+          jsonPreview.textContent = '// Выберите хотя бы один столбец.';
+          return;
+        }
+
+        const result = [];
+        for (let i = 1; i < sheetRows.length; i++) {
+          const row = sheetRows[i];
+          const item = {};
+          activeCols.forEach(cfg => {
+            const idx = headers.indexOf(cfg.original);
+            if (idx !== -1) {
+              let val = row[idx];
+              // Попытка привести числа и булевы
+              if (typeof val === 'string') {
+                if (val.toLowerCase() === 'true') val = true;
+                else if (val.toLowerCase() === 'false') val = false;
+                else if (!isNaN(val) && val.trim() !== '') val = Number(val);
+              }
+              applyDotNotation(item, cfg.path, val);
+            }
+          });
+          result.push(item);
+        }
+
+        jsonPreview.textContent = JSON.stringify(result, null, 2);
+        downloadBtn.disabled = false;
+        statusMsg.textContent = `Готово. Сформировано ${result.length} объектов.`;
+      });
+
+      downloadBtn.addEventListener('click', function() {
+        const blob = new Blob([jsonPreview.textContent], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'converted_data.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+
+      saveSettingsBtn.addEventListener('click', function() {
+        readUIConfig();
+        const blob = new Blob([JSON.stringify(currentConfig, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'xlsx_converter_settings.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+
+      loadSettingsBtn.addEventListener('click', function() {
+        settingsInput.click();
+      });
+
+      settingsInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+          try {
+            const settings = JSON.parse(evt.target.result);
+            if (!Array.isArray(settings)) throw new Error('Неверный формат файла настроек');
+            
+            // Обновляем UI
+            const rows = columnsBody.querySelectorAll('tr');
+            settings.forEach(cfg => {
+              const row = Array.from(rows).find(r => r.querySelector('[data-col]').dataset.col === cfg.original);
+              if (row) {
+                row.querySelector('input[type="checkbox"]').checked = cfg.selected;
+                row.querySelector('.translit-input').value = cfg.translit || '';
+                row.querySelector('.path-input').value = cfg.path || '';
+              }
+            });
+            statusMsg.textContent = 'Настройки загружены. Нажмите "Сгенерировать JSON" для применения.';
+          } catch (err) {
+            statusMsg.textContent = 'Ошибка загрузки настроек: ' + err.message;
+          }
+        };
+        reader.readAsText(file);
+      });
+    })();
+  </script>
+</div>
